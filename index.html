@@ -153,7 +153,16 @@ hands.setOptions({
 });
 hands.onResults(res=>{
   if(res.multiHandLandmarks){
-    window.lastLandmarks = res.multiHandLandmarks[0];
+    const lm = res.multiHandLandmarks[0];
+    window.lastLandmarks = lm;
+
+    // ★ ここが欠けていた核心
+    if (window.landmarkBuffer) {
+      window.landmarkBuffer.push(lm);
+      if (window.landmarkBuffer.length > 60) {
+        window.landmarkBuffer.shift(); // 最大60フレーム
+      }
+    }
   }
 });
 
