@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>Hand ROM Analyzer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+body{
+  background:#111;color:#eee;
+  font-family:system-ui;
+  padding:16px;
+}
+#hud{
+  position:fixed;top:8px;left:8px;
+  font-size:11px;color:#9f9;
+}
+#buttons{
+  position:fixed;right:12px;bottom:12px;
+  display:flex;gap:10px;
+}
+button{
+  padding:10px;border-radius:8px;
+  background:#333;color:#fff;border:none;
+}
+#joaPanel{
+  display:none;
+  position:fixed;right:12px;bottom:70px;
+  background:#222;padding:12px;
+  border-radius:8px;font-size:12px;
+}
+table{border-collapse:collapse;}
+td,th{border:1px solid #555;padding:4px;text-align:center;}
+#selfInput{
+  margin-top:12px;
+  background:#1c1c1c;
+  padding:10px;border-radius:8px;
+}
+input[type="number"]{
+  width:80px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Hand ROM Analyzer</h2>
+
+<input type="file" id="videoInput" accept="video/*"><br><br>
+
+<button onclick="runAnalyze('EXT_OK')">伸展可能</button>
+<button onclick="runAnalyze('EXT_NG')">伸展不能</button>
+
+<div id="selfInput">
+<b>指尖―手掌距離（自記式）</b><br>
+被験者記入（cm または 任意単位）：<br>
+<input type="number" step="0.1">　
+<input type="number" step="0.1">　
+<input type="number" step="0.1">
+</div>
+
+<div id="hud"></div>
+
+<div id="buttons">
+  <button onclick="copyDebugLog()">ログコピー</button>
+  <button onclick="toggleJOA()">JOA参考値</button>
+</div>
+
+<div id="joaPanel">
+<b>JOA 手指関節可動域（参考）</b>
+<table>
+<tr><th>指</th><th>MCP</th><th>PIP</th><th>DIP</th></tr>
+<tr><td>示指</td><td>90°</td><td>100°</td><td>70°</td></tr>
+<tr><td>中指</td><td>90°</td><td>100°</td><td>70°</td></tr>
+<tr><td>薬指</td><td>90°</td><td>100°</td><td>70°</td></tr>
+<tr><td>小指</td><td>90°</td><td>100°</td><td>70°</td></tr>
+</table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<script>
+/* ===== Debug ===== */
+let DEBUG_LOG=[];
+function log(m){
+  const t=new Date().toLocaleTimeString();
+  DEBUG_LOG.push(`[${t}] ${m}`);
+  document.getElementById("hud").innerText=m;
+}
+function copyDebugLog(){
+  navigator.clipboard.writeText(DEBUG_LOG.join("\n"));
+  alert("ログをコピーしました");
+}
+function toggleJOA(){
+  const p=document.getElementById("joaPanel");
+  p.style.display = (p.style.display==="none")?"block":"none";
+}
+
+/* ===== video ===== */
+const video=document.createElement("video");
+video.muted=true;
+video.playsInline=true;
+video.loop=true;
+
+/* ===== canvas ===== */
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
+
+/* ===== hands ===== */
+const hands=new Hands({
+  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+});
+hands.setOptions({
+  maxNumHands:1,
+  modelComplexity:1,
+  minDetectionConfidence:0.5,
+  minTrackingConfidence:0.5
+});
+hands.onResults(res=>{
+  if(res.multiHandLandmarks){
+    window.lastLandmarks=res.multiHandLandmarks[0];
+  }
+});
+
+/* ===== frame loop ===== */
+let running=false;
+async function startLoop(){
+  if(running) return;
+  running=true;
+  log("frame loop started");
+  while(running){
+    if(video.readyState>=2){
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      await hands.send({image:canvas});
+    }
+    await new Promise(r=>setTimeout(r,33));
+  }
+}
+</script>
+
+<script src="analyze.js"></script>
+
+<script>
+function runAnalyze(mode){
+  const file=document.getElementById("videoInput").files[0];
+  if(!file){log("no video");return;}
+  video.src=URL.createObjectURL(file);
+  video.onloadeddata=async()=>{
+    await video.play();
+    startLoop();
+    log(`UI call → safeAnalyze(${mode})`);
+    safeAnalyze(mode);
+  };
+}
+log("index initialized");
+</script>
+
+</body>
+</html>
