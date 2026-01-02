@@ -2,67 +2,93 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>Hand ROM Analyzer</title>
+<title>Hand ROM Analyzer（2指グループ固定）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
 <style>
 body{
-  background:#111;color:#eee;
-  font-family:system-ui;
-  padding:16px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont;
+  background:#111; color:#eee;
+  margin:0; padding:16px;
+}
+h1{font-size:18px;margin:0 0 8px 0;}
+#guide{
+  font-size:13px; background:#222;
+  padding:10px; border-radius:8px; margin-bottom:10px;
+}
+#controls{margin-bottom:10px;}
+#result{
+  margin-top:10px; padding:10px;
+  background:#1c1c1c; border-radius:8px; line-height:1.5;
 }
 #hud{
-  position:fixed;top:8px;left:8px;
-  font-size:11px;color:#9f9;
+  position:fixed; top:8px; left:8px;
+  font-size:11px; color:#9f9;
+}
+#buildTag{
+  position:fixed; top:26px; left:8px;
+  font-size:10px; color:#6f6;
 }
 #buttons{
-  position:fixed;right:12px;bottom:12px;
-  display:flex;gap:10px;
+  position:fixed; right:12px; bottom:12px;
+  display:flex; gap:10px;
 }
 button{
-  padding:10px;border-radius:8px;
-  background:#333;color:#fff;border:none;
+  background:#333; color:#fff;
+  border:none; padding:10px 12px;
+  border-radius:8px; font-size:13px;
 }
+button:hover{background:#555;}
 #joaPanel{
-  display:none;
-  position:fixed;right:12px;bottom:70px;
-  background:#222;padding:12px;
-  border-radius:8px;font-size:12px;
+  display:none; position:fixed;
+  right:12px; bottom:70px;
+  background:#222; padding:12px;
+  border-radius:8px; font-size:12px;
 }
-table{border-collapse:collapse;}
-td,th{border:1px solid #555;padding:4px;text-align:center;}
-#selfInput{
-  margin-top:12px;
-  background:#1c1c1c;
-  padding:10px;border-radius:8px;
-}
-input[type="number"]{
-  width:80px;
-}
+table{width:100%;border-collapse:collapse;margin-top:6px;}
+td,th{border:1px solid #555;padding:3px;text-align:center;}
 </style>
 </head>
 
 <body>
 
-<h2>Hand ROM Analyzer</h2>
+<h1>手指 可動域解析（動画・2指固定）</h1>
 
-<input type="file" id="videoInput" accept="video/*"><br><br>
+<div id="guide">
+<b>撮影ガイド</b><br>
+・手掌側推奨（背側でも可）<br>
+・無理に伸展しなくてよい<br><br>
 
-<button onclick="runAnalyze('EXT_OK')">伸展可能</button>
-<button onclick="runAnalyze('EXT_NG')">伸展不能</button>
-
-<div id="selfInput">
-<b>指尖―手掌距離（自記式）</b><br>
-被験者記入（cm または 任意単位）：<br>
-<input type="number" step="0.1">　
-<input type="number" step="0.1">　
-<input type="number" step="0.1">
+<b>測定モード</b><br>
+・<b>伸展可能</b>：最大伸展が動画内にある場合<br>
+・<b>伸展不能</b>：拘縮・疼痛がある場合（TAM評価）
 </div>
 
+<div id="controls">
+<b>測定グループ</b><br>
+<label>
+  <input type="radio" name="group" value="thumb" checked>
+  親指側（示指・中指）
+</label>
+<label style="margin-left:8px;">
+  <input type="radio" name="group" value="pinky">
+  小指側（薬指・小指）
+</label>
+
+<br><br>
+<input type="file" id="videoInput" accept="video/*"><br><br>
+
+<button onclick="runAnalyze('EXT_OK')">伸展可能時 測定</button>
+<button onclick="runAnalyze('EXT_NG')" style="margin-left:6px;">伸展不能時 測定</button>
+</div>
+
+<div id="result">動画を選択してください</div>
 <div id="hud"></div>
+<div id="buildTag"></div>
 
 <div id="buttons">
-  <button onclick="copyDebugLog()">ログコピー</button>
-  <button onclick="toggleJOA()">JOA参考値</button>
+<button onclick="copyDebugLog()">ログコピー</button>
+<button onclick="toggleJOA()">JOA参考値</button>
 </div>
 
 <div id="joaPanel">
@@ -74,13 +100,19 @@ input[type="number"]{
 <tr><td>薬指</td><td>90°</td><td>100°</td><td>70°</td></tr>
 <tr><td>小指</td><td>90°</td><td>100°</td><td>70°</td></tr>
 </table>
+<br>
+※ 指尖―手掌距離は <b>自記式</b>（実測）
 </div>
 
+<!-- ===== MediaPipe ===== -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 
+<!-- ===== Debug ===== -->
 <script>
-/* ===== Debug ===== */
+const INDEX_ID = "index_12ROMn_SAFE_2026-01-02";
+const BUILD_TIME = new Date().toISOString();
 let DEBUG_LOG=[];
+
 function log(m){
   const t=new Date().toLocaleTimeString();
   DEBUG_LOG.push(`[${t}] ${m}`);
@@ -92,68 +124,76 @@ function copyDebugLog(){
 }
 function toggleJOA(){
   const p=document.getElementById("joaPanel");
-  p.style.display = (p.style.display==="none")?"block":"none";
+  p.style.display=(p.style.display==="none")?"block":"none";
 }
 
-/* ===== video ===== */
-const video=document.createElement("video");
-video.muted=true;
-video.playsInline=true;
-video.loop=true;
+document.getElementById("buildTag").innerText =
+  `INDEX-ID: ${INDEX_ID} / BUILD: ${BUILD_TIME}`;
+</script>
 
-/* ===== canvas ===== */
-const canvas=document.createElement("canvas");
-const ctx=canvas.getContext("2d");
+<!-- ===== video / canvas / hands ===== -->
+<script>
+window.video = document.createElement("video");
+video.muted = true;
+video.playsInline = true;
 
-/* ===== hands ===== */
-const hands=new Hands({
-  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+window.canvas = document.createElement("canvas");
+window.ctx = canvas.getContext("2d");
+
+window.hands = new Hands({
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 hands.setOptions({
-  maxNumHands:1,
-  modelComplexity:1,
-  minDetectionConfidence:0.5,
-  minTrackingConfidence:0.5
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
 });
 hands.onResults(res=>{
   if(res.multiHandLandmarks){
-    window.lastLandmarks=res.multiHandLandmarks[0];
+    window.lastLandmarks = res.multiHandLandmarks[0];
   }
 });
 
-/* ===== frame loop ===== */
 let running=false;
 async function startLoop(){
   if(running) return;
   running=true;
   log("frame loop started");
+
   while(running){
     if(video.readyState>=2){
-      canvas.width=video.videoWidth;
-      canvas.height=video.videoHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      await hands.send({image:canvas});
+      await hands.send({image: canvas});
     }
     await new Promise(r=>setTimeout(r,33));
   }
 }
+
+log("index initialized: video & hands ready");
 </script>
 
+<!-- ===== External Analyzer ===== -->
 <script src="analyze.js"></script>
 
 <script>
 function runAnalyze(mode){
   const file=document.getElementById("videoInput").files[0];
-  if(!file){log("no video");return;}
-  video.src=URL.createObjectURL(file);
-  video.onloadeddata=async()=>{
+  if(!file){ log("no video"); return; }
+
+  window.selectedGroup =
+    document.querySelector('input[name="group"]:checked').value;
+
+  video.src = URL.createObjectURL(file);
+  video.onloadeddata = async ()=>{
     await video.play();
     startLoop();
     log(`UI call → safeAnalyze(${mode})`);
     safeAnalyze(mode);
   };
 }
-log("index initialized");
 </script>
 
 </body>
