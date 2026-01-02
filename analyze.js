@@ -1,9 +1,9 @@
 /* ===============================
    Hand ROM Analyzer
-   analyze.js v1.4.0-medfix
+   analyze.js v1.5.0-stable
    =============================== */
 
-const ANALYZE_VERSION = "v1.4.0-medfix";
+const ANALYZE_VERSION = "v1.5.0-stable";
 const BUILD_TIME = "2026-01-02";
 
 log(`Analyze.js loaded : 12ROMn ${ANALYZE_VERSION}`);
@@ -26,6 +26,7 @@ function analyze(mode){
 
   const lm = window.lastLandmarks;
 
+  // 親指は含めない設計
   const fingerDefs = {
     index:  [5, 6, 7, 8],
     middle: [9,10,11,12],
@@ -36,12 +37,12 @@ function analyze(mode){
   let resultText = "";
 
   for(const [name, ids] of Object.entries(fingerDefs)){
-    const MCP = correctedAngle(lm[0], lm[ids[0]], lm[ids[1]]);
-    const PIP = correctedAngle(lm[ids[0]], lm[ids[1]], lm[ids[2]]);
-    const DIP = correctedAngle(lm[ids[1]], lm[ids[2]], lm[ids[3]]);
+    const MCP = flexAngle(lm[0], lm[ids[0]], lm[ids[1]]);
+    const PIP = flexAngle(lm[ids[0]], lm[ids[1]], lm[ids[2]]);
+    const DIP = flexAngle(lm[ids[1]], lm[ids[2]], lm[ids[3]]);
 
     if(mode === "EXT_OK"){
-      // 伸展可能：屈曲・伸展を出す
+      // 伸展可能：屈曲角のみ（伸展は信用しない）
       resultText += `
 <b>${name}</b><br>
 MCP：屈曲 ${MCP.toFixed(1)}°<br>
@@ -49,11 +50,11 @@ PIP：屈曲 ${PIP.toFixed(1)}°<br>
 DIP：屈曲 ${DIP.toFixed(1)}°<br><br>
 `;
     }else{
-      // 伸展不能：総運動角のみ
-      const totalROM = MCP + PIP + DIP;
+      // 伸展不能：総運動角（TAM）
+      const TAM = MCP + PIP + DIP;
       resultText += `
 <b>${name}</b><br>
-総運動角（TAM）：${totalROM.toFixed(1)}°<br><br>
+総運動角（TAM）：${TAM.toFixed(1)}°<br><br>
 `;
     }
   }
@@ -62,13 +63,12 @@ DIP：屈曲 ${DIP.toFixed(1)}°<br><br>
   log("analysis finished");
 }
 
-/* ===== 角度計算（医学補正込み） ===== */
+/* ===== 医学的に妥当な屈曲角 ===== */
 
-function correctedAngle(a,b,c){
-  // b を頂点とした角度
-  const ang = rawAngle(a,b,c);
+function flexAngle(a,b,c){
   // MediaPipe は外角 → 屈曲角に変換
-  return Math.max(0, 180 - ang);
+  const ang = rawAngle(a,b,c);
+  return clamp(180 - ang, 0, 180);
 }
 
 function rawAngle(a,b,c){
