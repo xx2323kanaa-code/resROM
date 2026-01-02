@@ -136,7 +136,9 @@ document.getElementById("buildTag").innerText =
 window.video = document.createElement("video");
 video.muted = true;
 video.playsInline = true;
-
+/* ★ ここで初期化（この位置が重要） */
+window.landmarkBuffer = [];
+  
 window.canvas = document.createElement("canvas");
 window.ctx = canvas.getContext("2d");
 
